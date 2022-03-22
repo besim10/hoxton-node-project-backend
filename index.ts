@@ -17,6 +17,12 @@ app.get("/restaurants", async (req, res) => {
   });
   res.send(restaurants);
 });
+app.get("/restaurants/:name", async (req, res) => {
+  const name = req.params.name
+
+  const restaurant = await prisma.restaurant.findUnique({where: {name}, include:{category:true, photos: true}})
+  res.send(restaurant);
+});
 app.get("/albanian-restaurants", async (req, res) => {
   const restaurants = await prisma.restaurant.findMany({
     where:{location:{equals: 'Albania'}},
