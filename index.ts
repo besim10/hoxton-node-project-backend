@@ -26,14 +26,14 @@ app.get("/restaurants/:name", async (req, res) => {
 });
 app.get("/albanian-restaurants", async (req, res) => {
   const restaurants = await prisma.restaurant.findMany({
-    where:{location:{equals: 'Albania'}},
+    where:{location: 'Albania'},
     include: {photos: true, category: true}, 
   });
   res.send(restaurants);
 });
 app.get("/kosovo-restaurants", async (req, res) => {
   const restaurants = await prisma.restaurant.findMany({
-    where:{location:{equals: 'Kosovo'}},
+    where:{location:'Kosovo'},
     include: {photos: true, category: true}, 
   });
   res.send(restaurants);
@@ -47,7 +47,7 @@ app.get("/categories/:name", async (req, res) => {
 
   try {
     const category = await prisma.category.findUnique({
-      where: { name: name },
+      where: { name },
       include: {restaurants: {include: {category: true}}},
     });
     res.send(category);
@@ -105,11 +105,86 @@ app.post("/register", async (req, res) => {
     const user = await prisma.user.findUnique({
       // @ts-ignore
       where: { id: data.id },
-      include: { favoriteRestaurants: {include: {restaurant: true}}, reservations:{include: {restaurant: true}} },
+      include: { favoriteRestaurants: {include: {restaurant: {include: {category:true}}}}, reservations:{include: {restaurant: {include:{category: true}}}} },
     });
   
     return user;
   }
+
+  app.post('/reservation', async(req,res) => {
+    const {userId, restaurantId, persons, dateAndTime} = req.body
+    const token = req.headers.authorization;
+    try{
+      await prisma.reservation.create({data: {userId, restaurantId, persons, dateAndTime}})
+      const user = await getUserFromToken(token as string)
+      if(user){
+        res.send(user)
+      }
+    }catch(err: any){
+      res.status(400).send({ error: err.message });
+    }
+  })
+  app.post('/favorites', async(req,res) => {
+    const {userId, restaurantId} = req.body
+    const token = req.headers.authorization;
+    try{
+      await prisma.favoriteRestaurant.create({data: {userId, restaurantId}})
+      const user = await getUserFromToken(token as string)
+      if(user){
+        res.send(user)
+      }
+    }catch(err: any){
+      res.status(400).send({ error: err.message });
+    }
+  })
+  app.delete("/favorites/:id", async (req, res) => {
+    const id = Number(req.params.id);
+    const token = req.headers.authorization || "";
+    try {
+      const user = await getUserFromToken(token);
+      //@ts-ignore
+      const matchedFavorited = user.favoriteRestaurants.find((favRestaurant) => favRestaurant.id === id);
+  
+      if (user && matchedFavorited) {
+        const favoritedRestaurant = await prisma.favoriteRestaurant.findUnique({ where: { id } });
+  
+        if (favoritedRestaurant) {
+          await prisma.favoriteRestaurant.delete({ where: { id } });
+          const user = await getUserFromToken(token);
+          res.send(user);
+        } else {
+          res.status(404).send({ error: "Favorite Restaurant not found." });
+        }
+      }
+    } catch (err) {
+      // @ts-ignore
+      res.status(400).send({ err: err.message });
+    }
+  });
+  app.delete("/reservation/:id", async (req, res) => {
+    const id = Number(req.params.id);
+    const token = req.headers.authorization || "";
+    try {
+      const user = await getUserFromToken(token);
+      //@ts-ignore
+      const matchedReservation = user.reservations.find((reservation) => reservation.id === id);
+  
+      if (user && matchedReservation) {
+        const reservation = await prisma.reservation.findUnique({ where: { id } });
+  
+        if (reservation) {
+          await prisma.reservation.delete({ where: { id } });
+          const user = await getUserFromToken(token);
+          res.send(user);
+        } else {
+          res.status(404).send({ error: "Reservation not found." });
+        }
+      }
+    } catch (err) {
+      // @ts-ignore
+      res.status(400).send({ err: err.message });
+    }
+  });
 app.get("/validate", async (req, res) => {
     const token = req.headers.authorization;
   
